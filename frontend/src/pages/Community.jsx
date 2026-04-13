@@ -11,12 +11,18 @@ const Community = () => {
   const [creations, setCreations] = useState([]);
   const { user } = useUser();
   const [loading, setLoading] = useState(true);
-  const { getToken } = useAuth();
+  const { getToken, isLoaded, isSignedIn } = useAuth();
 
   const fetchCreations = async () => {
     try {
+      const token = await getToken();
+
+      if (!token) {
+        return;
+      }
+
       const { data } = await axios.get("/api/user/get-published-creations", {
-        headers: { Authorization: `Bearer ${await getToken()}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       if (data.success) {
@@ -26,16 +32,26 @@ const Community = () => {
       }
     } catch (error) {
       console.log(error);
-      toast.error(error.response?.data?.message || error.message);
+      console.log(error.response?.data?.message || error.message);
     }
     setLoading(false);
   };
 
   const imageLikeToggle = async (id) => {
     try {
-      const { data } = await axios.post("/api/user/toggle-like-creation",{id}, {
-        headers: { Authorization: `Bearer ${await getToken()}` },
-      });
+      const token = await getToken();
+
+      if (!token) {
+        return;
+      }
+
+      const { data } = await axios.post(
+        "/api/user/toggle-like-creation",
+        { id },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
 
       if (data.success) {
         toast.success(data.message);
@@ -49,10 +65,11 @@ const Community = () => {
   };
 
   useEffect(() => {
-    if (user) {
-      fetchCreations();
-    }
-  }, [user]);
+  if (!isLoaded || !isSignedIn || !user) return;
+
+  fetchCreations();
+}, [isLoaded, isSignedIn, user]);
+
   return !loading ? (
     <div className="flex-1 h-full flex flex-col gap-4 p-6">
       Creations

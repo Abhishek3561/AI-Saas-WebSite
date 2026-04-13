@@ -3,45 +3,58 @@ import { Sparkles, Gem } from "lucide-react";
 import CreationItem from "../components/CreationItem";
 import axios from "axios";
 import toast from "react-hot-toast";
-import { useAuth,useClerk } from "@clerk/react";
+import { useAuth, useClerk } from "@clerk/react";
 
 axios.defaults.baseURL = import.meta.env.VITE_BASE_URL;
-
 
 const Dashboard = () => {
   const [creations, setCreations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isPremium, setIsPremium] = useState(false);
-  const { getToken } = useAuth();
+
+  const { getToken, isLoaded, isSignedIn } = useAuth();
   const { session } = useClerk();
 
+  // ✅ Premium check (same as yours)
   useEffect(() => {
     if (!session) return;
-    const result = session.checkAuthorization({ plan: 'premium_plan' });
+    const result = session.checkAuthorization({ plan: "premium_plan" });
     setIsPremium(result);
   }, [session]);
 
+  // ✅ FIXED function (no nesting)
   const getDashboardData = async () => {
     try {
+      setLoading(true);
+
+      const token = await getToken();
+
+      if (!token) {
+        setLoading(false); // ✅ important fix
+        return;
+      }
+
       const { data } = await axios.get("/api/user/get-user-creations", {
-        headers: { Authorization: `Bearer ${await getToken()}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       if (data.success) {
-        setCreations(data.creations);
+        setCreations(data.creations || []);
       } else {
-        toast.error(data.message);
+        console.log(data.message);
       }
     } catch (error) {
-      console.log(error);
-      toast.error(error.response?.data?.message || error.message);
+      console.log(error.response?.data?.message || error.message);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
+  // ✅ FIXED useEffect (correct placement)
   useEffect(() => {
+    if (!isLoaded || !isSignedIn) return;
     getDashboardData();
-  }, []);
+  }, [isLoaded, isSignedIn]);
 
   return (
     <div className="h-full overflow-y-scroll p-6">
@@ -61,7 +74,8 @@ const Dashboard = () => {
         <div className="flex justify-between items-center w-72 p-4 px-6 bg-white rounded-xl border border-gray-200">
           <div className="text-slate-600">
             <p className="text-sm">Active Plan</p>
-            <h2 className="text-xl font-semibold">{isPremium ? "Premium" : "Free"}
+            <h2 className="text-xl font-semibold">
+              {isPremium ? "Premium" : "Free"}
             </h2>
           </div>
           <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#FF61C5] to-[#9E53EE] text-white flex justify-center items-center">
@@ -69,22 +83,19 @@ const Dashboard = () => {
           </div>
         </div>
       </div>
-      
-      {
-        loading ? (
-          <div className='flex justify-center items-center h-3/4'>
-    <div className='animate-spin rounded-full h-11 w-11 border-3
-    border-purple-500 border-t-transparent'></div>
-</div>
-        ) : (
-           <div className="space-y-3">
-        <p className="mt-6 mb-4">Recent Creations</p>
-        {
-          creations.map((item)=><CreationItem key={item.id} item={item} />)
-        }
-      </div>
-        )
-      }
+
+      {loading ? (
+        <div className="flex justify-center items-center h-3/4">
+          <div className="animate-spin rounded-full h-11 w-11 border-3 border-purple-500 border-t-transparent"></div>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <p className="mt-6 mb-4">Recent Creations</p>
+          {creations.map((item) => (
+            <CreationItem key={item.id} item={item} />
+          ))}
+        </div>
+      )}
     </div>
   );
 };
